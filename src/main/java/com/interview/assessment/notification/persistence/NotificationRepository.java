@@ -2,12 +2,14 @@ package com.interview.assessment.notification.persistence;
 
 import com.interview.assessment.notification.domain.enums.Channel;
 import com.interview.assessment.notification.domain.enums.NotificationStatus;
+import com.interview.assessment.notification.dto.RecipientDto;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -44,8 +46,8 @@ public class NotificationRepository {
                 .addValue("priority", row.priority())
                 .addValue("status", row.status().name())
                 .addValue("selectedChannels", encodeChannels(row.selectedChannels()))
-                .addValue("createdAt", row.createdAt())
-                .addValue("updatedAt", row.updatedAt());
+                .addValue("createdAt", Timestamp.from(row.createdAt()))
+                .addValue("updatedAt", Timestamp.from(row.updatedAt()));
 
         jdbcTemplate.update(sql, params);
     }
@@ -56,6 +58,28 @@ public class NotificationRepository {
                 new MapSqlParameterSource("id", notificationId),
                 (rs, rowNum) -> mapRow(rs));
         return rows.stream().findFirst();
+    }
+
+    public void insertRecipients(UUID notificationId, List<RecipientDto> recipients, Instant createdAt) {
+        String sql = """
+                INSERT INTO notification_recipient (
+                  id, notification_id, recipient_ref, email, phone, slack_target, created_at
+                ) VALUES (
+                  :id, :notificationId, :recipientRef, :email, :phone, :slackTarget, :createdAt
+                )
+                """;
+
+        for (RecipientDto recipient : recipients) {
+            MapSqlParameterSource params = new MapSqlParameterSource()
+                    .addValue("id", UUID.randomUUID())
+                    .addValue("notificationId", notificationId)
+                    .addValue("recipientRef", recipient.recipientId())
+                    .addValue("email", recipient.email())
+                    .addValue("phone", recipient.phone())
+                    .addValue("slackTarget", recipient.slackUserOrChannel())
+                    .addValue("createdAt", Timestamp.from(createdAt));
+            jdbcTemplate.update(sql, params);
+        }
     }
 
     private NotificationRow mapRow(ResultSet rs) throws SQLException {

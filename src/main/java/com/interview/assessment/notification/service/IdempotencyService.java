@@ -25,35 +25,45 @@ public class IdempotencyService {
         this.idempotencyRepository = idempotencyRepository;
     }
 
-    public Optional<UUID> findExisting(String sourceSystem, String key, String requestHash) {
+    public Reservation reserveOrReplay(String sourceSystem, String key, String requestHash, UUID candidateNotificationId, Instant now) {
         if (key == null || key.isBlank()) {
-            return Optional.empty();
+            return Reservation.newSubmission(candidateNotificationId);
         }
+
         Optional<IdempotencyRecord> existing = idempotencyRepository.find(sourceSystem, key);
-        if (existing.isEmpty() || existing.get().expiresAt().isBefore(Instant.now())) {
-            return Optional.empty();
+        if (existing.isPresent()) {
+            IdempotencyRecord record = existing.get();
+            if (record.expiresAt().isAfter(now)) {
+                validateHash(record, requestHash);
+                return Reservation.replay(record.notificationId());
+            }
+            idempotencyRepository.delete(sourceSystem, key);
         }
-        if (!existing.get().requestHash().equals(requestHash)) {
-            throw new ConflictException("Idempotency key reused with a different payload");
+
+        IdempotencyRecord toInsert = new IdempotencyRecord(
+                sourceSystem,
+                key,
+                candidateNotificationId,
+                requestHash,
+                now,
+                now.plus(TTL)
+        );
+
+        try {
+            idempotencyRepository.insert(toInsert);
+            return Reservation.newSubmission(candidateNotificationId);
+        } catch (DuplicateKeyException ignored) {
+            // Lost a race to another request with the same key; resolve by read.
+            IdempotencyRecord raced = idempotencyRepository.find(sourceSystem, key)
+                    .orElseThrow(() -> new IllegalStateException("Idempotency record missing after duplicate key conflict"));
+            validateHash(raced, requestHash);
+            return Reservation.replay(raced.notificationId());
         }
-        return Optional.of(existing.get().notificationId());
     }
 
-    public void save(String sourceSystem, String key, UUID notificationId, String requestHash) {
-        if (key == null || key.isBlank()) {
-            return;
-        }
-        try {
-            idempotencyRepository.insert(new IdempotencyRecord(
-                    sourceSystem,
-                    key,
-                    notificationId,
-                    requestHash,
-                    Instant.now(),
-                    Instant.now().plus(TTL)
-            ));
-        } catch (DuplicateKeyException ignored) {
-            // Another request won the race; caller resolves by read path.
+    private void validateHash(IdempotencyRecord existing, String requestHash) {
+        if (!existing.requestHash().equals(requestHash)) {
+            throw new ConflictException("Idempotency key reused with a different payload");
         }
     }
 
@@ -64,6 +74,16 @@ public class IdempotencyService {
             return HexFormat.of().formatHex(hashed);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("Missing SHA-256 support", e);
+        }
+    }
+
+    public record Reservation(UUID notificationId, boolean replay) {
+        static Reservation newSubmission(UUID notificationId) {
+            return new Reservation(notificationId, false);
+        }
+
+        static Reservation replay(UUID notificationId) {
+            return new Reservation(notificationId, true);
         }
     }
 }

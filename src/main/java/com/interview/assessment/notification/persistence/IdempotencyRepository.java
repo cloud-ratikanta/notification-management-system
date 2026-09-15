@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -47,8 +48,18 @@ public class IdempotencyRepository {
                 .addValue("idempotencyKey", record.idempotencyKey())
                 .addValue("notificationId", record.notificationId())
                 .addValue("requestHash", record.requestHash())
-                .addValue("createdAt", record.createdAt())
-                .addValue("expiresAt", record.expiresAt()));
+                .addValue("createdAt", Timestamp.from(record.createdAt()))
+                .addValue("expiresAt", Timestamp.from(record.expiresAt())));
+    }
+
+    public void delete(String sourceSystem, String idempotencyKey) {
+        String sql = """
+                DELETE FROM idempotency_record
+                WHERE source_system = :sourceSystem AND idempotency_key = :idempotencyKey
+                """;
+        jdbcTemplate.update(sql, new MapSqlParameterSource()
+                .addValue("sourceSystem", sourceSystem)
+                .addValue("idempotencyKey", idempotencyKey));
     }
 
     private IdempotencyRecord mapRow(ResultSet rs) throws SQLException {

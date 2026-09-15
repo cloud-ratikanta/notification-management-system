@@ -2,8 +2,10 @@ package com.interview.assessment.notification;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest(properties = "notification.worker.enabled=false")
+@SpringBootTest
+@ActiveProfiles("acceptance")
 class NotificationApplicationTests {
 
     @Test

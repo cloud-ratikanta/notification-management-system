@@ -1,6 +1,7 @@
 package com.interview.assessment.notification.service;
 
 import com.interview.assessment.notification.domain.enums.NotificationStatus;
+import com.interview.assessment.notification.domain.enums.DeliveryStatus;
 import com.interview.assessment.notification.dto.DeliveryStatusDto;
 import com.interview.assessment.notification.dto.NotificationAcceptResponse;
 import com.interview.assessment.notification.dto.NotificationStatusResponse;
@@ -39,7 +40,7 @@ public class StatusQueryService {
                         d.lastErrorClass()))
                 .toList();
 
-        boolean anyPending = deliveries.stream().anyMatch(d -> d.status().name().equals("PENDING") || d.status().name().equals("IN_FLIGHT"));
+        boolean anyPending = deliveries.stream().anyMatch(d -> d.status() == DeliveryStatus.PENDING || d.status() == DeliveryStatus.IN_FLIGHT);
         NotificationStatus status = anyPending ? NotificationStatus.IN_PROGRESS : notification.status();
 
         return new NotificationStatusResponse(
@@ -55,13 +56,13 @@ public class StatusQueryService {
         );
     }
 
-    public NotificationAcceptResponse getAcceptView(UUID notificationId) {
+    public NotificationAcceptResponse getAcceptView(UUID notificationId, boolean duplicate) {
         NotificationRepository.NotificationRow notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + notificationId));
         return new NotificationAcceptResponse(
                 notification.id(),
                 notification.status(),
-                false,
+                duplicate,
                 notification.selectedChannels(),
                 notification.createdAt()
         );

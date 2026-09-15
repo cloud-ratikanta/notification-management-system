@@ -9,6 +9,7 @@ import com.interview.assessment.notification.domain.enums.NotificationStatus;
 import com.interview.assessment.notification.dto.NotificationAcceptResponse;
 import com.interview.assessment.notification.dto.RecipientDto;
 import com.interview.assessment.notification.dto.SubmitNotificationRequest;
+import com.interview.assessment.notification.exception.BadRequestException;
 import com.interview.assessment.notification.persistence.DeliveryRepository;
 import com.interview.assessment.notification.persistence.NotificationRepository;
 import org.springframework.stereotype.Service;
@@ -48,14 +49,23 @@ public class NotificationIngestionService {
 
     @Transactional
     public NotificationAcceptResponse submit(SubmitNotificationRequest request, String idempotencyKey) {
+        Instant now = Instant.now();
+        validateScheduleWindow(request, now);
+
         String requestHash = idempotencyService.requestHash(writeRequestAsJson(request));
-        var existingId = idempotencyService.findExisting(request.sourceSystem(), idempotencyKey, requestHash);
-        if (existingId.isPresent()) {
-            return statusQueryService.getAcceptView(existingId.get());
+        UUID candidateId = request.notificationId() == null ? UUID.randomUUID() : request.notificationId();
+        IdempotencyService.Reservation reservation = idempotencyService.reserveOrReplay(
+                request.sourceSystem(),
+                idempotencyKey,
+                requestHash,
+                candidateId,
+                now
+        );
+        if (reservation.replay()) {
+            return statusQueryService.getAcceptView(reservation.notificationId(), true);
         }
 
-        Instant now = Instant.now();
-        UUID notificationId = request.notificationId() == null ? UUID.randomUUID() : request.notificationId();
+        UUID notificationId = reservation.notificationId();
         String correlationId = request.correlationId() == null || request.correlationId().isBlank()
                 ? request.eventId() : request.correlationId();
 
@@ -74,11 +84,13 @@ public class NotificationIngestionService {
                 now,
                 now
         ));
+        notificationRepository.insertRecipients(notificationId, request.recipients(), now);
 
         for (RecipientDto recipient : request.recipients()) {
             for (var channel : selectedChannels) {
+                UUID deliveryId = UUID.randomUUID();
                 deliveryRepository.insert(new DeliveryRepository.DeliveryRow(
-                        UUID.randomUUID(),
+                        deliveryId,
                         notificationId,
                         recipient.recipientId(),
                         channel,
@@ -90,13 +102,25 @@ public class NotificationIngestionService {
                         now,
                         now
                 ));
+                auditService.append(notificationId, deliveryId, "DELIVERY_QUEUED",
+                        "{\"recipientId\":\"" + recipient.recipientId() + "\",\"channel\":\"" + channel.name() + "\"}");
             }
         }
 
-        idempotencyService.save(request.sourceSystem(), idempotencyKey, notificationId, requestHash);
+        auditService.append(notificationId, null, "ROUTING_DECISION",
+                "{\"selectedChannels\":\"" + selectedChannels + "\"}");
         auditService.append(notificationId, null, "NOTIFICATION_ACCEPTED", "{\"status\":\"QUEUED\"}");
 
         return new NotificationAcceptResponse(notificationId, NotificationStatus.QUEUED, false, selectedChannels, now);
+    }
+
+    private void validateScheduleWindow(SubmitNotificationRequest request, Instant now) {
+        if (request.expiresAt() != null && !request.expiresAt().isAfter(now)) {
+            throw new BadRequestException("expiresAt must be in the future");
+        }
+        if (request.scheduleAt() != null && request.expiresAt() != null && !request.expiresAt().isAfter(request.scheduleAt())) {
+            throw new BadRequestException("expiresAt must be later than scheduleAt");
+        }
     }
 
     private List<com.interview.assessment.notification.domain.enums.Channel> routeChannels(SubmitNotificationRequest request) {
