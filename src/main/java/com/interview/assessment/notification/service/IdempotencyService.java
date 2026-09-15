@@ -18,11 +18,12 @@ import java.util.UUID;
 @Service
 public class IdempotencyService {
 
-    private static final Duration TTL = Duration.ofHours(24);
     private final IdempotencyRepository idempotencyRepository;
+    private final com.interview.assessment.notification.config.NotificationProperties props;
 
-    public IdempotencyService(IdempotencyRepository idempotencyRepository) {
+    public IdempotencyService(IdempotencyRepository idempotencyRepository, com.interview.assessment.notification.config.NotificationProperties props) {
         this.idempotencyRepository = idempotencyRepository;
+        this.props = props;
     }
 
     public Reservation reserveOrReplay(String sourceSystem, String key, String requestHash, UUID candidateNotificationId, Instant now) {
@@ -40,13 +41,14 @@ public class IdempotencyService {
             idempotencyRepository.delete(sourceSystem, key);
         }
 
+        long ttlSeconds = props == null ? Duration.ofHours(24).toSeconds() : props.getIdempotency().getTtlSeconds();
         IdempotencyRecord toInsert = new IdempotencyRecord(
                 sourceSystem,
                 key,
                 candidateNotificationId,
                 requestHash,
                 now,
-                now.plus(TTL)
+                now.plusSeconds(ttlSeconds)
         );
 
         try {
