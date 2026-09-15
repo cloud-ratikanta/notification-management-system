@@ -67,9 +67,14 @@ Treat greenfield as **existing**. Changes must not break public API field names;
 - [ ] Claim SQL/update only transitions from claimable states (LLD §6.2)  
 - [ ] Attempt rows append-only; attempt_no unique per delivery  
 - [ ] Test or documented single-threaded H2 limitation + PostgreSQL `SKIP LOCKED` intent  
+
+Implementation notes:
+- Claim-update semantics implemented in `DeliveryRepository.claimQueuedBatch(...)` — the worker selects candidates then performs an UPDATE that only succeeds when the row is in a claimable state (`status IN (PENDING, RETRY_SCHEDULED)`). The method returns only rows that were successfully transitioned to `IN_FLIGHT`.
+- `delivery_attempt` has a unique constraint on `(delivery_id, attempt_no)` so attempt rows are append-only and duplicate attempt numbers are prevented by the DB.
+- Integration tests added: `DeliveryRepositoryIntegrationTest` verifies attempt uniqueness enforcement and that only PENDING/RETRY rows are claimed. 
+- Note: H2 (used in acceptance tests) does not emulate Postgres `SKIP LOCKED` semantics. For production concurrency, prefer `SELECT ... FOR UPDATE SKIP LOCKED` on Postgres; the current claim loop uses an idempotent UPDATE predicate which yields correct behaviour but may be less efficient under high contention. Consider a Postgres-specific claim implementation using SKIP LOCKED for better horizontal scalability.
 ### Depends on
-- GF-08  
----
+- GF-08
 ## BF epic exit criteria
 - [ ] Slack selectable and visible in status  
 - [ ] Idempotent POST demo (curl twice → one notification)  
