@@ -12,9 +12,11 @@ import java.util.Set;
 public class DefaultChannelRouter implements ChannelRouter {
 
     private final RoutingPolicy routingPolicy;
+    private final com.interview.assessment.notification.strategy.ChannelStrategyRegistry strategyRegistry;
 
-    public DefaultChannelRouter(RoutingPolicy routingPolicy) {
+    public DefaultChannelRouter(RoutingPolicy routingPolicy, com.interview.assessment.notification.strategy.ChannelStrategyRegistry strategyRegistry) {
         this.routingPolicy = routingPolicy;
+        this.strategyRegistry = strategyRegistry;
     }
 
     @Override
@@ -26,6 +28,9 @@ public class DefaultChannelRouter implements ChannelRouter {
 
         Set<Channel> supportedByAddress = supportedByAddress(recipient);
         selected.removeIf(channel -> !routingPolicy.enabledChannels().contains(channel) || !supportedByAddress.contains(channel));
+
+        // remove channels for which we don't have a delivery strategy registered
+        selected.removeIf(channel -> !strategyRegistry.has(channel));
 
         if (recipient.blockedChannels() != null && !recipient.blockedChannels().isEmpty()) {
             selected.removeAll(recipient.blockedChannels());

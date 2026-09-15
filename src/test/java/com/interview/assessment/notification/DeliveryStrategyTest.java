@@ -1,10 +1,8 @@
 package com.interview.assessment.notification;
 
 import com.interview.assessment.notification.domain.enums.FailureClass;
-import com.interview.assessment.notification.strategy.DeliveryCommand;
-import com.interview.assessment.notification.strategy.DeliveryResult;
-import com.interview.assessment.notification.strategy.EmailDeliveryStrategy;
-import com.interview.assessment.notification.strategy.SmsDeliveryStrategy;
+import com.interview.assessment.notification.strategy.*;
+import com.interview.assessment.notification.strategy.SlackDeliveryStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -47,6 +45,24 @@ class DeliveryStrategyTest {
         SmsDeliveryStrategy s = new SmsDeliveryStrategy();
         DeliveryResult r = s.deliver(new DeliveryCommand(
                 UUID.randomUUID(), UUID.randomUUID(), "r1", null, "+1", null, null, 0
+        ));
+        assertThat(r.success()).isTrue();
+    }
+    @Test
+    void slackStrategy_missingTarget_fails() {
+        SlackDeliveryStrategy s = new SlackDeliveryStrategy();
+        DeliveryResult r = s.deliver(new DeliveryCommand(
+                UUID.randomUUID(), UUID.randomUUID(), "r1", null, null, null, null, 0
+        ));
+        assertThat(r.success()).isFalse();
+        assertThat(r.failureClass()).isEqualTo(com.interview.assessment.notification.domain.enums.FailureClass.INVALID_RECIPIENT);
+    }
+
+    @Test
+    void slackStrategy_withTarget_succeeds() {
+        SlackDeliveryStrategy s = new SlackDeliveryStrategy();
+        DeliveryResult r = s.deliver(new DeliveryCommand(
+                UUID.randomUUID(), UUID.randomUUID(), "r1", null, null, "#channel", null, 0
         ));
         assertThat(r.success()).isTrue();
     }
