@@ -23,3 +23,9 @@ notification:
     include-title: true
     include-body: true
     include-template-params: true
+  idempotency:
+    ttl-seconds: 86400
+  retry:
+    max-attempts: 5
+    base-delay-ms: 1000
+    max-delay-ms: 300000
