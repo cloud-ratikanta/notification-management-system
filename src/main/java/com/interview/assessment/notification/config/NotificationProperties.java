@@ -43,5 +43,63 @@ public class NotificationProperties {
             this.batchSize = batchSize;
         }
     }
+
+    private final Dedup dedup = new Dedup();
+
+    public Dedup getDedup() {
+        return dedup;
+    }
+
+    public static class Dedup {
+        /** dedup window in seconds (default 24h) */
+        private long windowSeconds = 24 * 3600L;
+
+        /** whether eventId should be considered when computing the content hash */
+        private boolean includeEventId = false;
+
+        private boolean includeTitle = true;
+        private boolean includeBody = true;
+        private boolean includeTemplateParams = true;
+
+        public long getWindowSeconds() {
+            return windowSeconds;
+        }
+
+        public void setWindowSeconds(long windowSeconds) {
+            this.windowSeconds = windowSeconds;
+        }
+
+        public boolean isIncludeEventId() {
+            return includeEventId;
+        }
+
+        public void setIncludeEventId(boolean includeEventId) {
+            this.includeEventId = includeEventId;
+        }
+
+        public boolean isIncludeTitle() {
+            return includeTitle;
+        }
+
+        public void setIncludeTitle(boolean includeTitle) {
+            this.includeTitle = includeTitle;
+        }
+
+        public boolean isIncludeBody() {
+            return includeBody;
+        }
+
+        public void setIncludeBody(boolean includeBody) {
+            this.includeBody = includeBody;
+        }
+
+        public boolean isIncludeTemplateParams() {
+            return includeTemplateParams;
+        }
+
+        public void setIncludeTemplateParams(boolean includeTemplateParams) {
+            this.includeTemplateParams = includeTemplateParams;
+        }
+    }
 }
 

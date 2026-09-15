@@ -26,5 +26,13 @@ public class ChannelStrategyRegistry {
         }
         return strategy;
     }
+
+    public boolean has(Channel channel) {
+        return strategies.containsKey(channel);
+    }
+
+    public java.util.Set<Channel> registeredChannels() {
+        return java.util.Collections.unmodifiableSet(strategies.keySet());
+    }
 }
 

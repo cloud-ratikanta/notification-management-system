@@ -31,6 +31,7 @@ public class NotificationIngestionService {
     private final IdempotencyService idempotencyService;
     private final StatusQueryService statusQueryService;
     private final AuditService auditService;
+    private final ContentDedupService contentDedupService;
     private final ObjectMapper objectMapper;
 
     public NotificationIngestionService(ChannelRouter channelRouter,
@@ -39,6 +40,7 @@ public class NotificationIngestionService {
                                         IdempotencyService idempotencyService,
                                         StatusQueryService statusQueryService,
                                         AuditService auditService,
+                                        ContentDedupService contentDedupService,
                                         ObjectMapper objectMapper) {
         this.channelRouter = channelRouter;
         this.notificationRepository = notificationRepository;
@@ -46,6 +48,7 @@ public class NotificationIngestionService {
         this.idempotencyService = idempotencyService;
         this.statusQueryService = statusQueryService;
         this.auditService = auditService;
+        this.contentDedupService = contentDedupService;
         this.objectMapper = objectMapper;
     }
 
@@ -65,6 +68,17 @@ public class NotificationIngestionService {
         );
         if (reservation.replay()) {
             return statusQueryService.getAcceptView(reservation.notificationId(), true);
+        }
+
+        // Content deduplication: suppress logically duplicate content from being created twice
+        java.util.Optional<UUID> dup = contentDedupService.findOrRegister(request, reservation.notificationId(), now);
+        if (dup.isPresent()) {
+            // Found existing notification with same content within dedup window -> record audit and replay view
+            UUID canonicalId = dup.get();
+            // record that we suppressed creation of candidate notification in favor of canonical
+            auditService.append(canonicalId, null, "DUPLICATE_SUPPRESSED",
+                    "{\"canonicalNotificationId\":\"" + canonicalId + "\",\"candidateNotificationId\":\"" + reservation.notificationId() + "\",\"mechanism\":\"content_dedup\"}");
+            return statusQueryService.getAcceptView(canonicalId, true);
         }
 
         UUID notificationId = reservation.notificationId();

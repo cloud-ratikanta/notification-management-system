@@ -1,6 +1,9 @@
 package com.interview.assessment.notification;
 
 import com.interview.assessment.notification.domain.DefaultChannelRouter;
+import com.interview.assessment.notification.strategy.ChannelStrategyRegistry;
+import com.interview.assessment.notification.strategy.EmailDeliveryStrategy;
+import com.interview.assessment.notification.strategy.SmsDeliveryStrategy;
 import com.interview.assessment.notification.domain.RoutingInput;
 import com.interview.assessment.notification.dto.RecipientDto;
 import com.interview.assessment.notification.domain.RoutingPolicy;
@@ -14,7 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DefaultChannelRouterTest {
 
-    private final DefaultChannelRouter router = new DefaultChannelRouter(new RoutingPolicy());
+    private final DefaultChannelRouter router = new DefaultChannelRouter(
+            new RoutingPolicy(),
+            new ChannelStrategyRegistry(List.of(new EmailDeliveryStrategy(), new SmsDeliveryStrategy()))
+    );
 
     @Test
     void defaultChannelsForHighSeverity_chooseEmail() {

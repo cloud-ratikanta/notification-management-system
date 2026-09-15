@@ -150,6 +150,52 @@ class NotificationApiIntegrationTest {
     }
 
     @Test
+    void differentIdempotencyKeysSameContentSecondSuppressed() throws Exception {
+        String payload = """
+                {
+                  "sourceSystem":"billing-service",
+                  "eventId":"evt-dup-1",
+                  "type":"PAYMENT_FAILED",
+                  "severity":"HIGH",
+                  "priority":"NORMAL",
+                  "recipients":[{"recipientId":"user-dup","email":"dup@example.com"}],
+                  "requestedChannels":["EMAIL"]
+                }
+                """;
+
+        MvcResult first = mockMvc.perform(post("/api/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "dup-key-1")
+                        .content(payload))
+                .andExpect(status().isAccepted())
+                .andReturn();
+
+        String firstId = objectMapper.readTree(first.getResponse().getContentAsString()).get("notificationId").asText();
+
+        // second POST with different idempotency key but identical content -> should be suppressed (replay)
+        mockMvc.perform(post("/api/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "dup-key-2")
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notificationId").value(firstId))
+                .andExpect(jsonPath("$.duplicate").value(true));
+
+        Integer notificationCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notification WHERE id = ?",
+                Integer.class,
+                firstId
+        );
+        Integer deliveryCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM delivery WHERE notification_id = ?",
+                Integer.class,
+                java.util.UUID.fromString(firstId)
+        );
+        assertThat(notificationCount).isEqualTo(1);
+        assertThat(deliveryCount).isEqualTo(1);
+    }
+
+    @Test
     void auditEndpointReturnsEventsForNotification() throws Exception {
         String payload = """
                 {

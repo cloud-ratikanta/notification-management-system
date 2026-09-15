@@ -64,6 +64,15 @@ CREATE TABLE IF NOT EXISTS idempotency_record (
   PRIMARY KEY (source_system, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS content_dedup (
+  id UUID PRIMARY KEY,
+  content_hash CHAR(64) NOT NULL,
+  notification_id UUID NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_content_hash ON content_dedup(content_hash);
+
 CREATE TABLE IF NOT EXISTS audit_event (
   id UUID PRIMARY KEY,
   notification_id UUID,
