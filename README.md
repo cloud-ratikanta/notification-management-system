@@ -44,3 +44,25 @@ Deploy directly to PCF using the provided `manifest.yml`:
 
 # 2. Push application to PCF
 cf push
+```
+
+### Option 2: Run locally (prototype)
+
+```bash
+# Run tests
+./gradlew test
+
+# Start service
+./gradlew bootRun
+```
+
+Service endpoints:
+
+- `POST /api/v1/notifications`
+- `GET /api/v1/notifications/{id}`
+
+Reference design docs:
+
+- `docs/architecture.md`
+- `docs/lld.md`
+- `docs/stories/01-greenfield.md`

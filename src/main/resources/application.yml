@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: notification-management-service
+  datasource:
+    url: jdbc:h2:mem:notificationsystem;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+  sql:
+    init:
+      mode: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+notification:
+  worker:
+    enabled: true
+    fixed-delay-ms: 1000
+
