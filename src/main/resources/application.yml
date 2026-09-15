@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: notification-management-service
+  profiles:
+    default: local
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+notification:
+  worker:
+    enabled: true
+    fixed-delay-ms: 1000
