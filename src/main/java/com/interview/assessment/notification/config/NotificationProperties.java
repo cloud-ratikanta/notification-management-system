@@ -11,6 +11,8 @@ public class NotificationProperties {
         return worker;
     }
 
+    
+
     public static class Worker {
         /**
          * When false, DeliveryWorker is not registered (useful for HTTP-only tests).
@@ -45,10 +47,12 @@ public class NotificationProperties {
     }
 
     private final Dedup dedup = new Dedup();
+    private final Idempotency idempotency = new Idempotency();
+    private final Retry retry = new Retry();
 
-    public Dedup getDedup() {
-        return dedup;
-    }
+    public Dedup getDedup() { return dedup; }
+    public Idempotency getIdempotency() { return idempotency; }
+    public Retry getRetry() { return retry; }
 
     public static class Dedup {
         /** dedup window in seconds (default 24h) */
@@ -100,6 +104,30 @@ public class NotificationProperties {
         public void setIncludeTemplateParams(boolean includeTemplateParams) {
             this.includeTemplateParams = includeTemplateParams;
         }
+    }
+
+    
+
+    public static class Idempotency {
+        private long ttlSeconds = 24 * 3600L;
+
+        public long getTtlSeconds() { return ttlSeconds; }
+        public void setTtlSeconds(long ttlSeconds) { this.ttlSeconds = ttlSeconds; }
+    }
+
+    public static class Retry {
+        private int maxAttempts = 5;
+        private long baseDelayMs = 1000L;
+        private long maxDelayMs = 5 * 60 * 1000L; // 5 minutes
+
+        public int getMaxAttempts() { return maxAttempts; }
+        public void setMaxAttempts(int maxAttempts) { this.maxAttempts = maxAttempts; }
+
+        public long getBaseDelayMs() { return baseDelayMs; }
+        public void setBaseDelayMs(long baseDelayMs) { this.baseDelayMs = baseDelayMs; }
+
+        public long getMaxDelayMs() { return maxDelayMs; }
+        public void setMaxDelayMs(long maxDelayMs) { this.maxDelayMs = maxDelayMs; }
     }
 }
 

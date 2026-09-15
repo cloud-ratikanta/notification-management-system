@@ -1,0 +1,15 @@
+applications:
+  - name: notification-management-service
+    path: build/libs/notification-management-system-0.0.1-SNAPSHOT.jar
+    instances: 1
+    memory: 512M
+    disk_quota: 1G
+    buildpacks:
+      - java_buildpack
+    env:
+      SPRING_PROFILES_ACTIVE: "acceptance"
+      JAVA_OPTS: "-Xmx384m -Djava.security.egd=file:/dev/./urandom"
+    health-check-type: http
+    health-check-http-endpoint: /actuator/health
+    services: []
+

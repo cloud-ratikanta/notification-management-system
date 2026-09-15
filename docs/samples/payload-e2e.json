@@ -1,0 +1,27 @@
+{
+  "notificationId": null,
+  "sourceSystem": "local-cli",
+  "eventId": "evt-e2e",
+  "correlationId": null,
+  "type": "test",
+  "severity": "LOW",
+  "priority": "NORMAL",
+  "title": "E2E demo notification",
+  "body": "This is a demo notification for local end-to-end testing.",
+  "templateKey": null,
+  "templateParams": {},
+  "recipients": [
+    {
+      "recipientId": "r1",
+      "email": "recipient@example.com",
+      "phone": null,
+      "slackUserOrChannel": null,
+      "preferredChannels": [],
+      "blockedChannels": []
+    }
+  ],
+  "requestedChannels": [],
+  "scheduleAt": null,
+  "expiresAt": null
+}
+

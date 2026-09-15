@@ -35,6 +35,22 @@ public class IdempotencyRepository {
         return rows.stream().findFirst();
     }
 
+    
+    // legacy-compatible: original find without expiry filter (not used internally)
+    public Optional<IdempotencyRecord> findAllowExpired(String sourceSystem, String idempotencyKey) {
+        String sql = """
+                SELECT source_system, idempotency_key, notification_id, request_hash, created_at, expires_at
+                FROM idempotency_record
+                WHERE source_system = :sourceSystem AND idempotency_key = :idempotencyKey
+                """;
+        List<IdempotencyRecord> rows = jdbcTemplate.query(sql,
+                new MapSqlParameterSource()
+                        .addValue("sourceSystem", sourceSystem)
+                        .addValue("idempotencyKey", idempotencyKey),
+                (rs, rowNum) -> mapRow(rs));
+        return rows.stream().findFirst();
+    }
+
     public void insert(IdempotencyRecord record) {
         String sql = """
                 INSERT INTO idempotency_record (

@@ -145,6 +145,21 @@ public class DeliveryRepository {
                 .addValue("id", deliveryId));
     }
 
+    public void scheduleRetry(UUID deliveryId, Instant nextAttemptAt, Instant now) {
+        String sql = """
+                UPDATE delivery
+                SET status = :status,
+                    next_attempt_at = :nextAttemptAt,
+                    updated_at = :updatedAt
+                WHERE id = :id
+                """;
+        jdbcTemplate.update(sql, new MapSqlParameterSource()
+                .addValue("status", DeliveryStatus.RETRY_SCHEDULED.name())
+                .addValue("nextAttemptAt", Timestamp.from(nextAttemptAt))
+                .addValue("updatedAt", Timestamp.from(now))
+                .addValue("id", deliveryId));
+    }
+
     public void recordAttempt(UUID deliveryId,
                               int attemptNo,
                               String outcome,

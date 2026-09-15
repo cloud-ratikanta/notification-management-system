@@ -103,6 +103,31 @@ curl -s http://localhost:8080/api/v1/notifications/${NOTIF_ID}/audit | jq
 Notes:
 - When running tests the `acceptance` profile uses an in-memory H2 database and disables the scheduled worker for deterministic tests. For live local demo enable the worker (`notification.worker.enabled=true`) in `application.yml` or run the demo without the `acceptance` profile.
 
+Local E2E demo script
+
+If you want a quick, repeatable local end-to-end demo (build, start app with stubbed providers, submit a notification, trigger processing, and tail logs) use the included script:
+
+```bash
+./scripts/run-local-e2e.sh
+```
+
+Expected outcome: the script builds the fat JAR, starts the application with profiles `acceptance,local-e2e` (which registers local stub strategies), posts the sample payload `docs/samples/payload-e2e.json`, triggers `/internal/process-now`, polls the audit endpoint and prints `DELIVERY_SUCCEEDED` when observed. Logs are saved to `/tmp/notification_local_e2e.log` by the script.
+
+Testcontainers / Docker note
+
+Some integration tests in this repository use Testcontainers against PostgreSQL (see `docs/testcases.md`). Testcontainers requires a working Docker daemon. If Docker is not available on your machine or CI runner you will see errors such as:
+
+```
+Could not find a valid Docker environment. Please check configuration. Attempted configurations were:
+	UnixSocketClientProviderStrategy: failed with exception InvalidConfigurationException (Could not find unix domain socket). Root cause NoSuchFileException (/var/run/docker.sock)
+java.lang.IllegalStateException: Could not find a valid Docker environment. Please see logs and check configuration
+```
+
+Recommended actions:
+- For local runs install and start Docker so Testcontainers can spin up Postgres.
+- For CI, run on a runner that provides Docker or configure Testcontainers to use a remote Docker endpoint.
+- Use H2-based acceptance tests for quick feedback if Docker is unavailable.
+
 
 Reference design docs:
 

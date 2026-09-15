@@ -2,7 +2,7 @@ spring:
   application:
     name: notification-management-service
   profiles:
-    default: local
+    default: acceptance
 
 management:
   endpoints:
@@ -14,3 +14,18 @@ notification:
   worker:
     enabled: true
     fixed-delay-ms: 1000
+  channels:
+    slack:
+      enabled: false
+  dedup:
+    window-seconds: 86400
+    include-event-id: false
+    include-title: true
+    include-body: true
+    include-template-params: true
+  idempotency:
+    ttl-seconds: 86400
+  retry:
+    max-attempts: 5
+    base-delay-ms: 1000
+    max-delay-ms: 300000

@@ -62,7 +62,11 @@ class DeliveryOrchestratorTest {
         FakeDeliveryRepository repo = new FakeDeliveryRepository();
         FakeAuditService audit = new FakeAuditService();
 
-        DeliveryOrchestrator orchestrator = new DeliveryOrchestrator(registry, repo, audit);
+        com.interview.assessment.notification.domain.RetryPolicy retryPolicy = new com.interview.assessment.notification.domain.RetryPolicy(
+                new com.interview.assessment.notification.config.NotificationProperties().getRetry(),
+                new java.util.Random()
+        );
+        DeliveryOrchestrator orchestrator = new DeliveryOrchestrator(registry, repo, audit, retryPolicy);
 
         UUID deliveryId = UUID.randomUUID();
         UUID notificationId = UUID.randomUUID();

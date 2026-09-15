@@ -3,6 +3,7 @@ package com.interview.assessment.notification.service;
 import com.interview.assessment.notification.dto.AuditEventDto;
 import com.interview.assessment.notification.persistence.AuditRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,12 +14,17 @@ public class AuditService {
 
     private final AuditRepository auditRepository;
 
-    public AuditService(AuditRepository auditRepository) {
+    private final AuditSanitizer sanitizer;
+    @Autowired
+    public AuditService(AuditRepository auditRepository, AuditSanitizer sanitizer) {
         this.auditRepository = auditRepository;
+        // ensure we always have a sanitizer even if null is injected (tests or legacy callers)
+        this.sanitizer = sanitizer == null ? new AuditSanitizer(new com.fasterxml.jackson.databind.ObjectMapper()) : sanitizer;
     }
 
     public void append(UUID notificationId, UUID deliveryId, String eventType, String payloadJson) {
-        auditRepository.append(notificationId, deliveryId, eventType, payloadJson, Instant.now());
+        String safe = sanitizer == null ? payloadJson : sanitizer.sanitize(payloadJson);
+        auditRepository.append(notificationId, deliveryId, eventType, safe, Instant.now());
     }
 
     public List<AuditEventDto> getByNotificationId(UUID notificationId) {
