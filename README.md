@@ -61,6 +61,49 @@ Service endpoints:
 - `POST /api/v1/notifications`
 - `GET /api/v1/notifications/{id}`
 
+Quick demo (local)
+
+1. Start the service locally (uses `application.yml` by default which enables the in-process worker):
+
+```bash
+./gradlew bootRun
+```
+
+2. Submit a notification (example):
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/notifications \
+  -H "Content-Type: application/json" \
+  -d '{
+	"sourceSystem":"billing-service",
+	"eventId":"evt-demo-1",
+	"type":"PAYMENT_FAILED",
+	"severity":"HIGH",
+	"priority":"NORMAL",
+	"recipients":[{"recipientId":"user-1","email":"user1@example.com"}],
+	"requestedChannels":["EMAIL"]
+  }' | jq
+```
+
+The response will be `202 Accepted` with a JSON body containing `notificationId`.
+
+3. Poll the status until delivery completes:
+
+```bash
+NOTIF_ID=<notificationId-from-post>
+curl -s http://localhost:8080/api/v1/notifications/${NOTIF_ID} | jq
+```
+
+4. (Optional) Fetch the audit trail:
+
+```bash
+curl -s http://localhost:8080/api/v1/notifications/${NOTIF_ID}/audit | jq
+```
+
+Notes:
+- When running tests the `acceptance` profile uses an in-memory H2 database and disables the scheduled worker for deterministic tests. For live local demo enable the worker (`notification.worker.enabled=true`) in `application.yml` or run the demo without the `acceptance` profile.
+
+
 Reference design docs:
 
 - `docs/architecture.md`

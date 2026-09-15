@@ -17,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -69,7 +71,15 @@ public class NotificationIngestionService {
         String correlationId = request.correlationId() == null || request.correlationId().isBlank()
                 ? request.eventId() : request.correlationId();
 
-        List<com.interview.assessment.notification.domain.enums.Channel> selectedChannels = routeChannels(request);
+        Map<RecipientDto, List<com.interview.assessment.notification.domain.enums.Channel>> routingByRecipient = routeChannels(request);
+        List<com.interview.assessment.notification.domain.enums.Channel> selectedChannels = routingByRecipient.values().stream()
+                .flatMap(List::stream)
+                .distinct()
+                .toList();
+
+        if (selectedChannels.isEmpty()) {
+            throw new BadRequestException("NO_ELIGIBLE_CHANNEL");
+        }
 
         notificationRepository.insert(new NotificationRepository.NotificationRow(
                 notificationId,
@@ -81,13 +91,17 @@ public class NotificationIngestionService {
                 request.priority().name(),
                 NotificationStatus.QUEUED,
                 selectedChannels,
+                request.scheduleAt(),
+                request.expiresAt(),
                 now,
                 now
         ));
         notificationRepository.insertRecipients(notificationId, request.recipients(), now);
 
-        for (RecipientDto recipient : request.recipients()) {
-            for (var channel : selectedChannels) {
+        Instant firstAttemptAt = request.scheduleAt() == null ? now : request.scheduleAt();
+        for (Map.Entry<RecipientDto, List<com.interview.assessment.notification.domain.enums.Channel>> entry : routingByRecipient.entrySet()) {
+            RecipientDto recipient = entry.getKey();
+            for (var channel : entry.getValue()) {
                 UUID deliveryId = UUID.randomUUID();
                 deliveryRepository.insert(new DeliveryRepository.DeliveryRow(
                         deliveryId,
@@ -96,9 +110,12 @@ public class NotificationIngestionService {
                         channel,
                         DeliveryStatus.PENDING,
                         0,
-                        now,
+                        firstAttemptAt,
                         null,
                         null,
+                        recipient.email(),
+                        recipient.phone(),
+                        recipient.slackUserOrChannel(),
                         now,
                         now
                 ));
@@ -123,12 +140,15 @@ public class NotificationIngestionService {
         }
     }
 
-    private List<com.interview.assessment.notification.domain.enums.Channel> routeChannels(SubmitNotificationRequest request) {
-        List<com.interview.assessment.notification.domain.enums.Channel> selectedChannels = new ArrayList<>();
+    private Map<RecipientDto, List<com.interview.assessment.notification.domain.enums.Channel>> routeChannels(SubmitNotificationRequest request) {
+        Map<RecipientDto, List<com.interview.assessment.notification.domain.enums.Channel>> selectedChannels = new LinkedHashMap<>();
         for (RecipientDto recipient : request.recipients()) {
-            selectedChannels.addAll(channelRouter.route(new RoutingInput(request.requestedChannels(), recipient)).channels());
+            List<com.interview.assessment.notification.domain.enums.Channel> channels = channelRouter
+                    .route(new RoutingInput(request.requestedChannels(), request.severity(), recipient))
+                    .channels();
+            selectedChannels.put(recipient, new ArrayList<>(channels));
         }
-        return selectedChannels.stream().distinct().toList();
+        return selectedChannels;
     }
 
     private String writeRequestAsJson(SubmitNotificationRequest request) {

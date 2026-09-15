@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS notification (
   priority VARCHAR(16) NOT NULL,
   status VARCHAR(32) NOT NULL,
   selected_channels VARCHAR(256),
+  schedule_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL
 );

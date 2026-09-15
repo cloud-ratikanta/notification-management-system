@@ -29,10 +29,10 @@ public class NotificationRepository {
         String sql = """
                 INSERT INTO notification (
                   id, source_system, event_id, correlation_id, type, severity, priority,
-                  status, selected_channels, created_at, updated_at
+                  status, selected_channels, schedule_at, expires_at, created_at, updated_at
                 ) VALUES (
                   :id, :sourceSystem, :eventId, :correlationId, :type, :severity, :priority,
-                  :status, :selectedChannels, :createdAt, :updatedAt
+                  :status, :selectedChannels, :scheduleAt, :expiresAt, :createdAt, :updatedAt
                 )
                 """;
 
@@ -46,6 +46,8 @@ public class NotificationRepository {
                 .addValue("priority", row.priority())
                 .addValue("status", row.status().name())
                 .addValue("selectedChannels", encodeChannels(row.selectedChannels()))
+                .addValue("scheduleAt", toTimestamp(row.scheduleAt()))
+                .addValue("expiresAt", toTimestamp(row.expiresAt()))
                 .addValue("createdAt", Timestamp.from(row.createdAt()))
                 .addValue("updatedAt", Timestamp.from(row.updatedAt()));
 
@@ -93,9 +95,20 @@ public class NotificationRepository {
                 rs.getString("priority"),
                 NotificationStatus.valueOf(rs.getString("status")),
                 decodeChannels(rs.getString("selected_channels")),
+                toInstant(rs, "schedule_at"),
+                toInstant(rs, "expires_at"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("updated_at").toInstant()
         );
+    }
+
+    private Instant toInstant(ResultSet rs, String column) throws SQLException {
+        Timestamp value = rs.getTimestamp(column);
+        return value == null ? null : value.toInstant();
+    }
+
+    private Timestamp toTimestamp(Instant value) {
+        return value == null ? null : Timestamp.from(value);
     }
 
     private String encodeChannels(List<Channel> channels) {
@@ -119,6 +132,8 @@ public class NotificationRepository {
             String priority,
             NotificationStatus status,
             List<Channel> selectedChannels,
+            Instant scheduleAt,
+            Instant expiresAt,
             Instant createdAt,
             Instant updatedAt
     ) {

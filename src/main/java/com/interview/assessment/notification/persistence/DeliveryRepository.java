@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,49 +52,55 @@ public class DeliveryRepository {
     }
 
     public List<DeliveryRow> findByNotificationId(UUID notificationId) {
-        String sql = "SELECT * FROM delivery WHERE notification_id = :notificationId ORDER BY created_at";
+        String sql = baseSelect() + " WHERE d.notification_id = :notificationId ORDER BY d.created_at";
         return jdbcTemplate.query(sql, new MapSqlParameterSource("notificationId", notificationId),
                 (rs, rowNum) -> mapRow(rs));
     }
 
     public List<DeliveryRow> claimQueuedBatch(int batchSize, Instant now) {
-        String selectSql = """
-                SELECT * FROM delivery
-                WHERE status = :queuedStatus
-                ORDER BY created_at
-                LIMIT :batchSize
+        String selectSql = baseSelect() + """
+                 WHERE d.status IN (:pendingStatus, :retryStatus)
+                   AND d.next_attempt_at <= :now
+                 ORDER BY d.next_attempt_at, d.created_at
+                 LIMIT :batchSize
                 """;
 
-        List<DeliveryRow> queuedRows = jdbcTemplate.query(selectSql,
+        List<DeliveryRow> candidates = jdbcTemplate.query(selectSql,
                 new MapSqlParameterSource()
-                        .addValue("queuedStatus", DeliveryStatus.PENDING.name())
+                        .addValue("pendingStatus", DeliveryStatus.PENDING.name())
+                        .addValue("retryStatus", DeliveryStatus.RETRY_SCHEDULED.name())
+                        .addValue("now", Timestamp.from(now))
                         .addValue("batchSize", batchSize),
                 (rs, rowNum) -> mapRow(rs));
 
-        for (DeliveryRow row : queuedRows) {
+        List<UUID> claimedIds = new ArrayList<>();
+        for (DeliveryRow row : candidates) {
             String updateSql = """
                     UPDATE delivery
                     SET status = :newStatus,
                         attempt_count = attempt_count + 1,
                         last_attempt_at = :now,
                         updated_at = :now
-                    WHERE id = :id AND status = :oldStatus
+                    WHERE id = :id AND status IN (:pendingStatus, :retryStatus)
                     """;
-            jdbcTemplate.update(updateSql, new MapSqlParameterSource()
+            int updated = jdbcTemplate.update(updateSql, new MapSqlParameterSource()
                     .addValue("newStatus", DeliveryStatus.IN_FLIGHT.name())
                     .addValue("now", Timestamp.from(now))
                     .addValue("id", row.id())
-                    .addValue("oldStatus", DeliveryStatus.PENDING.name()));
+                    .addValue("pendingStatus", DeliveryStatus.PENDING.name())
+                    .addValue("retryStatus", DeliveryStatus.RETRY_SCHEDULED.name()));
+            if (updated == 1) {
+                claimedIds.add(row.id());
+            }
         }
 
-        return findInflightByTime(now);
-    }
+        if (claimedIds.isEmpty()) {
+            return List.of();
+        }
 
-    private List<DeliveryRow> findInflightByTime(Instant now) {
-        String sql = "SELECT * FROM delivery WHERE status = :status AND updated_at = :updatedAt";
-        return jdbcTemplate.query(sql,
-                new MapSqlParameterSource("status", DeliveryStatus.IN_FLIGHT.name())
-                        .addValue("updatedAt", Timestamp.from(now)),
+        String claimedSql = baseSelect() + " WHERE d.id IN (:ids)";
+        return jdbcTemplate.query(claimedSql,
+                new MapSqlParameterSource("ids", claimedIds),
                 (rs, rowNum) -> mapRow(rs));
     }
 
@@ -125,6 +132,51 @@ public class DeliveryRepository {
                 .addValue("id", deliveryId));
     }
 
+    public void markExpired(UUID deliveryId, Instant now) {
+        String sql = """
+                UPDATE delivery
+                SET status = :status,
+                    updated_at = :updatedAt
+                WHERE id = :id
+                """;
+        jdbcTemplate.update(sql, new MapSqlParameterSource()
+                .addValue("status", DeliveryStatus.EXPIRED.name())
+                .addValue("updatedAt", Timestamp.from(now))
+                .addValue("id", deliveryId));
+    }
+
+    public void recordAttempt(UUID deliveryId,
+                              int attemptNo,
+                              String outcome,
+                              FailureClass failureClass,
+                              String safeDetail,
+                              Instant startedAt,
+                              Instant finishedAt) {
+        String sql = """
+                INSERT INTO delivery_attempt (id, delivery_id, attempt_no, started_at, finished_at, outcome, error_class, safe_detail)
+                VALUES (:id, :deliveryId, :attemptNo, :startedAt, :finishedAt, :outcome, :errorClass, :safeDetail)
+                """;
+        jdbcTemplate.update(sql, new MapSqlParameterSource()
+                .addValue("id", UUID.randomUUID())
+                .addValue("deliveryId", deliveryId)
+                .addValue("attemptNo", attemptNo)
+                .addValue("startedAt", Timestamp.from(startedAt))
+                .addValue("finishedAt", Timestamp.from(finishedAt))
+                .addValue("outcome", outcome)
+                .addValue("errorClass", failureClass == null ? null : failureClass.name())
+                .addValue("safeDetail", safeDetail));
+    }
+
+    private String baseSelect() {
+        return """
+                SELECT d.*, nr.email AS recipient_email, nr.phone AS recipient_phone, nr.slack_target AS recipient_slack_target
+                FROM delivery d
+                LEFT JOIN notification_recipient nr
+                  ON nr.notification_id = d.notification_id
+                 AND nr.recipient_ref = d.recipient_id
+                """;
+    }
+
     private Timestamp toTimestamp(Instant value) {
         return value == null ? null : Timestamp.from(value);
     }
@@ -141,6 +193,9 @@ public class DeliveryRepository {
                 toInstant(rs, "next_attempt_at"),
                 lastError == null ? null : FailureClass.valueOf(lastError),
                 toInstant(rs, "last_attempt_at"),
+                rs.getString("recipient_email"),
+                rs.getString("recipient_phone"),
+                rs.getString("recipient_slack_target"),
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("updated_at").toInstant()
         );
@@ -160,9 +215,11 @@ public class DeliveryRepository {
             Instant nextAttemptAt,
             FailureClass lastErrorClass,
             Instant lastAttemptAt,
+            String recipientEmail,
+            String recipientPhone,
+            String recipientSlackTarget,
             Instant createdAt,
             Instant updatedAt
     ) {
     }
 }
-

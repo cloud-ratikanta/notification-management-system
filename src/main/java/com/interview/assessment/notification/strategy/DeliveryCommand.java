@@ -8,6 +8,9 @@ public record DeliveryCommand(
         UUID deliveryId,
         UUID notificationId,
         String recipientId,
+        String recipientEmail,
+        String recipientPhone,
+        String recipientSlackTarget,
         Channel channel,
         int attemptNo
 ) {
